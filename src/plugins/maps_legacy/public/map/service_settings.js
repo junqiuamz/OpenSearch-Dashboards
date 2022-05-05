@@ -30,7 +30,6 @@
 
 import _ from 'lodash';
 import MarkdownIt from 'markdown-it';
-import { EMSClient } from '@elastic/ems-client';
 import { OpenSearchMapsClient } from '../common/opensearch_maps_client.js';
 import { i18n } from '@osd/i18n';
 import { getOpenSearchDashboardsVersion } from '../opensearch_dashboards_services';
@@ -43,10 +42,8 @@ export class ServiceSettings {
     this._mapConfig = mapConfig;
     this._tilemapsConfig = tilemapsConfig;
     this._hasTmsConfigured = typeof tilemapsConfig.url === 'string' && tilemapsConfig.url !== '';
-
     this._showZoomMessage = true;
-    this._emsClient = null;
-    this._opensearchMapsClient = new OpenSearchMapsClient({
+    this._emsClient = new OpenSearchMapsClient({
       language: i18n.getLocale(),
       appVersion: getOpenSearchDashboardsVersion(),
       appName: 'opensearch-dashboards',
@@ -120,39 +117,11 @@ export class ServiceSettings {
     };
   };
 
-  // anyone using this._emsClient should call this method before, to set the right client
-  async _setMapServices() {
-    // if client is not null, return immediately.
-    // Effectively, client creation will be called only once.
-    if (this._emsClient) {
-      return;
-    }
-    const useOpenSearchMaps = await this._opensearchMapsClient.isEnabled();
-    if (useOpenSearchMaps) {
-      // using OpenSearch Maps.
-      this._emsClient = this._opensearchMapsClient;
-    } else {
-      // not using OpenSearch Maps, fallback to default maps.
-      this._emsClient = new EMSClient({
-        language: i18n.getLocale(),
-        appVersion: getOpenSearchDashboardsVersion(),
-        appName: 'opensearch-dashboards',
-        fileApiUrl: this._mapConfig.emsFileApiUrl,
-        tileApiUrl: this._mapConfig.emsTileApiUrl,
-        landingPageUrl: this._mapConfig.emsLandingPageUrl,
-        fetchFunction: function (...args) {
-          return fetch(...args);
-        },
-      });
-    }
-  }
-
   async getFileLayers() {
     if (!this._mapConfig.includeOpenSearchMapsService) {
       return [];
     }
 
-    await this._setMapServices();
     const fileLayers = await this._emsClient.getFileLayers();
     return fileLayers.map(this._backfillSettings);
   }
@@ -171,8 +140,7 @@ export class ServiceSettings {
       allServices.push(tmsService);
     }
 
-    await this._setMapServices();
-    if (this._mapConfig.includeOpenSearchMapsService) {
+    if (this._mapConfig.includeOpenSearchMapsService && this._emsClient.manifestUrlIsFetchable()) {
       const servicesFromManifest = await this._emsClient.getTMSServices();
       const strippedServiceFromManifest = await Promise.all(
         servicesFromManifest
@@ -214,7 +182,6 @@ export class ServiceSettings {
   }
 
   async getEMSHotLink(fileLayerConfig) {
-    await this._setMapServices();
     const layer = await this.getFileLayerFromConfig(fileLayerConfig);
     return layer ? layer.getEMSHotLink() : null;
   }
@@ -225,7 +192,6 @@ export class ServiceSettings {
   }
 
   async _getAttributesForEMSTMSLayer(isDesaturated, isDarkMode) {
-    await this._setMapServices();
     const tmsServices = await this._emsClient.getTMSServices();
     const emsTileLayerId = this._mapConfig.emsTileLayerId;
     let serviceId;
@@ -269,7 +235,6 @@ export class ServiceSettings {
   }
 
   async _getFileUrlFromEMS(fileLayerConfig) {
-    await this._setMapServices();
     const fileLayers = await this._emsClient.getFileLayers();
     const layer = fileLayers.find((fileLayer) => {
       const hasIdByName = fileLayer.hasId(fileLayerConfig.name); //legacy

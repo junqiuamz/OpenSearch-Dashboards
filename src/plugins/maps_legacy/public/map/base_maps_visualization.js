@@ -144,23 +144,6 @@ export function BaseMapsVisualizationProvider() {
       }
 
       const mapParams = this._getMapsParams();
-      if (!this._tmsConfigured()) {
-        try {
-          const serviceSettings = await getServiceSettings();
-          const tmsServices = await serviceSettings.getTMSServices();
-          const userConfiguredTmsLayer = tmsServices[0];
-          const initBasemapLayer = userConfiguredTmsLayer
-            ? userConfiguredTmsLayer
-            : tmsServices.find((s) => s.id === emsTileLayerId.bright);
-          if (initBasemapLayer) {
-            this._setTmsLayer(initBasemapLayer);
-          }
-        } catch (e) {
-          getToasts().addWarning(e.message);
-          return;
-        }
-        return;
-      }
 
       try {
         if (this._wmsConfigured()) {
@@ -178,12 +161,32 @@ export function BaseMapsVisualizationProvider() {
               ...mapParams.wms.options,
             },
           });
+          return;
         } else if (this._tmsConfigured()) {
           const selectedTmsLayer = mapParams.wms.selectedTmsLayer;
           this._setTmsLayer(selectedTmsLayer);
+          return;
         }
       } catch (tmsLoadingError) {
         getToasts().addWarning(tmsLoadingError.message);
+      }
+
+      if (!this._tmsConfigured()) {
+        try {
+          const serviceSettings = await getServiceSettings();
+          const tmsServices = await serviceSettings.getTMSServices();
+          const userConfiguredTmsLayer = tmsServices[0];
+          const initBasemapLayer = userConfiguredTmsLayer
+            ? userConfiguredTmsLayer
+            : tmsServices.find((s) => s.id === emsTileLayerId.bright);
+          if (initBasemapLayer) {
+            this._setTmsLayer(initBasemapLayer);
+          }
+        } catch (e) {
+          getToasts().addWarning(e.message);
+          return;
+        }
+        return;
       }
     }
 
