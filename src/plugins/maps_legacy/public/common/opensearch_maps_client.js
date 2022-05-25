@@ -15,18 +15,18 @@ export class OpenSearchMapsClient extends EMSClient {
     this._manifestServiceUrl = manifestServiceUrl;
   }
 
-  async manifestUrlIsFetchable() {
+  async isEnabled() {
     let result;
     try {
-      result = await fetch(this._manifestServiceUrl);
+      result = await _fetchWithTimeout(this._manifestServiceUrl);
     } catch (e) {
       // silently ignoring the exception and returning false.
-      return false;
+      return true;
     }
     if (result.ok) {
       const resultJson = await result.json();
       return resultJson.enabled;
     }
-    return false;
+    return true;
   }
 }
